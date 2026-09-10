@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>DJI D-RTK 3 座標キャリブレーション計算ツール [Ver.20]</title>
+    <title>DJI D-RTK 3 座標キャリブレーション計算ツール [Ver.24]</title>
     <!-- Leaflet CSS & JS (地図表示用) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,14 +28,13 @@
         .result-value { font-weight: bold; color: #d35400; font-size: 1.3rem; margin-left: 10px; }
         .note { font-size: 0.85rem; color: #7f8c8d; margin-top: 10px; line-height: 1.4; }
         .manual-highlight { background-color: #fff3cd; border: 1px solid #ffeeba; }
-        /* 地図のスタイル */
         #map { height: 350px; width: 100%; margin-top: 15px; border-radius: 4px; display: none; z-index: 1; border: 1px solid #ccd1d1; }
     </style>
 </head>
 <body class="notranslate">
 
 <div class="container">
-    <h1>DJI D-RTK 3 座標キャリブレーション計算フォーム<br><span style="color: #e74c3c;">[Ver.20] (緯度経度60進数入力版)</span></h1>
+    <h1>DJI D-RTK 3 座標キャリブレーション計算フォーム<br><span style="color: #e74c3c;">[Ver.24] (JGD2011/2024 サーバー完全切替版)</span></h1>
 
     <div class="form-row">
         <div class="form-group">
@@ -94,26 +93,23 @@
         <div class="result-item">ジオイド高: <span class="result-value" id="res-geoid">-</span> m <span id="geoid-source" style="font-size: 0.9rem; color: #7f8c8d; font-weight: normal;"></span></div>
         <div class="result-item">DJI Pilot 2 入力用高さ: <span class="result-value" id="res-height">-</span> m</div>
         <div class="note">
-            ※ 緯度経度は WGS84(JGD2011) に準拠します。<br>
+            ※ 緯度経度は WGS84 に準拠します。<br>
             ※ DJI Pilot 2 入力用高さ = ジオイド高 ＋ 標高 ＋ ポール高さ ＋ アンテナ測定位置(0.102m)<br>
             ※ 自社専用のGoogleサーバー(GAS)を経由して国土地理院APIから安定取得します。
         </div>
         
-        <!-- 地図表示ボタンと地図コンテナ -->
         <button type="button" class="btn btn-map" id="map-toggle-btn" onclick="toggleMap()" style="display: none; width: 100%; text-align: center;">🗺️ 国土地理院地図で位置を確認する</button>
         <div id="map"></div>
     </div>
 </div>
 
 <script>
-    // --- 地図関連の処理 ---
     let map = null;
     let marker = null;
     let isMapVisible = false;
 
     function updateMap(lat, lon) {
         const zoomLevel = 17; 
-        
         if (!map) {
             map = L.map('map').setView([lat, lon], zoomLevel);
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
@@ -134,9 +130,7 @@
         if (isMapVisible) {
             mapDiv.style.display = 'block';
             btn.innerText = '🗺️ 地図を閉じる';
-            if (map) {
-                setTimeout(() => map.invalidateSize(), 100);
-            }
+            if (map) { setTimeout(() => map.invalidateSize(), 100); }
         } else {
             mapDiv.style.display = 'none';
             btn.innerText = '🗺️ 国土地理院地図で位置を確認する';
@@ -144,12 +138,9 @@
     }
 
     async function calculate() {
-        // 緯度入力値の取得と10進数への変換
         let latDeg = document.getElementById("lat-deg").value;
         let latMin = document.getElementById("lat-min").value;
         let latSec = document.getElementById("lat-sec").value;
-
-        // 経度入力値の取得と10進数への変換
         let lonDeg = document.getElementById("lon-deg").value;
         let lonMin = document.getElementById("lon-min").value;
         let lonSec = document.getElementById("lon-sec").value;
@@ -157,13 +148,13 @@
         const orthometricHeight = parseFloat(document.getElementById("input-h").value);
         const manualGeoidStr = document.getElementById("input-manual-geoid").value;
         const poleHeight = parseFloat(document.getElementById("pole-height").value);
+        const geoidType = document.getElementById("geoid-type").value;
 
         if (latDeg === "" || lonDeg === "" || isNaN(orthometricHeight)) {
             alert("緯度(度)、経度(度)、標高は必ず正しく入力してください。");
             return;
         }
 
-        // 60進数 -> 10進数変換計算
         let lat = parseFloat(latDeg) + (parseFloat(latMin || 0) / 60) + (parseFloat(latSec || 0) / 3600);
         let lon = parseFloat(lonDeg) + (parseFloat(lonMin || 0) / 60) + (parseFloat(lonSec || 0) / 3600);
 
@@ -175,23 +166,20 @@
             document.getElementById("res-height").innerText = "-";
             document.getElementById("result-box").style.display = "block";
             
-            // 地図を更新
             document.getElementById("map-toggle-btn").style.display = "block";
             updateMap(lat, lon);
 
-            // 手入力優先処理
             if (manualGeoidStr !== "") {
                 const manualGeoidHeight = parseFloat(manualGeoidStr);
                 document.getElementById("res-geoid").innerText = manualGeoidHeight.toFixed(3);
                 document.getElementById("geoid-source").innerText = "(手入力)";
-                
                 const finalHeight = manualGeoidHeight + orthometricHeight + poleHeight + 0.102;
                 document.getElementById("res-height").innerText = finalHeight.toFixed(3);
                 return;
             }
 
-            // 鈴木様ご提供の最新GAS URL (/exec)
-            const gasUrl = `https://script.google.com/macros/s/AKfycbxHsX5kTqdXhlZ9OVYbhkgH4YsAu35amq1gO4aJH0HirygY19y3q2erP8rmqXRiSn2EsA/exec?lat=${lat}&lon=${lon}`;
+            // 松留様からご提示いただいた新しいGASエンドポイントを使用
+            const gasUrl = `https://script.google.com/macros/s/AKfycbxe-m9455CrJAetr8mV_RxVvSEwV4jlPJlNZYCpkZSFI-Jbjkb1uS_kM9VR3MlDIHUD_Q/exec?lat=${lat}&lon=${lon}&geoidType=${geoidType}`;
             
             try {
                 const response = await fetch(gasUrl);
@@ -201,8 +189,8 @@
                 
                 if (data.OutputData && data.OutputData.geoidHeight) {
                     const geoidHeight = parseFloat(data.OutputData.geoidHeight);
-                    document.getElementById("res-geoid").innerText = geoidHeight.toFixed(3);
-                    document.getElementById("geoid-source").innerText = "(自動取得 - 会社専用サーバー経由)";
+                    document.getElementById("res-geoid").innerText = geoidHeight.toFixed(4); // 少数第4位まで表示
+                    document.getElementById("geoid-source").innerText = `(自動取得 - ${geoidType})`;
                     
                     const finalHeight = geoidHeight + orthometricHeight + poleHeight + 0.102;
                     document.getElementById("res-height").innerText = finalHeight.toFixed(3);
